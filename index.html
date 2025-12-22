@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ChicShelf | The Editorial Book Tracker</title>
+    <title>CHICSHELF | Editorial Book Tracker</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,12 +17,13 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    <!-- Babel for JSX -->
+    <!-- Babel for JSX Compilation in Browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
       body {
         font-family: 'Montserrat', sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
       .font-serif {
         font-family: 'Playfair Display', serif;
@@ -30,23 +31,16 @@
       .font-high-fashion {
         font-family: 'Bodoni Moda', serif;
       }
-      /* Hide scrollbar for Chrome, Safari and Opera */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      /* Hide scrollbar for IE, Edge and Firefox */
-      .no-scrollbar {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
-      }
+      /* Hide scrollbar */
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       
-      /* Animation Utilities */
       @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
       .animate-in {
-        animation: fadeIn 0.7s ease-out forwards;
+        animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
     </style>
   </head>
@@ -94,9 +88,7 @@
         'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=800',
       ];
 
-      // --- COMPONENTS ---
-
-      // Updated ThemeSwitcher from uploaded file
+      // --- COMPONENT: ThemeSwitcher ---
       const ThemeSwitcher = ({ currentTheme, onThemeChange, borderClass }) => {
         const themes = [
           { id: 'editor', label: 'EDITOR' },
@@ -106,7 +98,7 @@
         ];
 
         return (
-          <div className={`flex flex-wrap items-center justify-center gap-4 md:gap-6 pt-4 opacity-40 hover:opacity-100 transition-opacity duration-500`}>
+          <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 pt-4 opacity-40 hover:opacity-100 transition-opacity duration-500">
             {themes.map((t) => (
               <button
                 key={t.id}
@@ -124,14 +116,14 @@
         );
       };
 
-      // Updated BookCard from uploaded file
+      // --- COMPONENT: BookCard ---
       const BookCard = ({ book, theme, onDelete, onEdit }) => {
         const handleGoodreads = () => {
           window.open(`https://www.goodreads.com/search?q=${encodeURIComponent(book.title + ' ' + book.author)}`, '_blank');
         };
 
         return (
-          <div className={`group relative border-2 ${theme.border} ${theme.cardBg} transition-all duration-500 hover:shadow-2xl flex flex-col h-full`}>
+          <div className={`group relative border-2 ${theme.border} ${theme.cardBg} transition-all duration-500 hover:shadow-2xl flex flex-col h-full animate-in`}>
             <div className="relative aspect-[4/5] overflow-hidden border-b-2 bg-neutral-200">
               <img 
                 src={book.coverUrl} 
@@ -182,8 +174,7 @@
         );
       };
 
-      // --- MAIN APPLICATION LOGIC ---
-
+      // --- MAIN APP ---
       const App = () => {
         const [books, setBooks] = useState([]);
         const [currentTheme, setCurrentTheme] = useState('editor');
@@ -205,7 +196,7 @@
           coverUrl: '',
         });
 
-        // Load from localStorage
+        // Load Persistence
         useEffect(() => {
           const savedBooks = localStorage.getItem('chicShelf_books');
           const savedTheme = localStorage.getItem('chicShelf_theme');
@@ -213,7 +204,7 @@
           if (savedTheme) setCurrentTheme(savedTheme);
         }, []);
 
-        // Save to localStorage
+        // Save Persistence
         useEffect(() => {
           localStorage.setItem('chicShelf_books', JSON.stringify(books));
           localStorage.setItem('chicShelf_theme', currentTheme);
@@ -284,7 +275,7 @@
 
         const theme = THEME_CONFIG[currentTheme];
 
-        // Component for Cluster View
+        // Cluster View: Grouped by Author
         const ClusterView = () => {
           const authorGroups = useMemo(() => {
             const groups = {};
@@ -302,10 +293,10 @@
                 const circleSize = Math.min(300, 100 + (count - 1) * 25);
                 
                 return (
-                  <div key={author} className="flex flex-col items-center">
+                  <div key={author} className="flex flex-col items-center animate-in">
                      <div 
-                      style={{ width: `${circleSize}px`, height: `${circleSize}px` }}
-                      className={`mb-4 rounded-full border-2 ${theme.border} flex items-center justify-center p-6 text-center group hover:scale-105 transition-all duration-500 cursor-default shadow-lg overflow-hidden bg-opacity-10 bg-black`}
+                        style={{ width: `${circleSize}px`, height: `${circleSize}px` }}
+                        className={`mb-4 rounded-full border-2 ${theme.border} flex items-center justify-center p-6 text-center group hover:scale-105 transition-all duration-500 cursor-default shadow-lg overflow-hidden bg-opacity-10 bg-black`}
                      >
                         <span className="font-high-fashion font-bold leading-none uppercase tracking-tighter" style={{ fontSize: `${Math.max(10, circleSize/8)}px` }}>
                           {author}
@@ -328,10 +319,10 @@
           );
         };
 
-        // Component for Library View (Bookshelf Simulation)
+        // Library View: Compact Spines
         const LibraryView = () => {
           return (
-            <div className="max-w-6xl mx-auto py-12">
+            <div className="max-w-6xl mx-auto py-12 animate-in">
               <div className="flex flex-wrap justify-center items-end gap-1 md:gap-2 px-4">
                 {books.map((book) => (
                   <div 
@@ -362,7 +353,10 @@
           <div className={`min-h-screen transition-colors duration-500 ${theme.bg} ${theme.text} px-4 pb-12 pt-6 md:px-12 lg:px-24`}>
             <header className={`mb-8 sticky top-0 ${theme.bg} z-50 pt-2`}>
               <div className="flex justify-between items-center mb-4 md:mb-6">
-                <h1 className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none hover:italic cursor-pointer transition-all duration-700" onClick={() => setCurrentSection('shelf')}>
+                <h1 
+                  className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none hover:italic cursor-pointer transition-all duration-700" 
+                  onClick={() => setCurrentSection('shelf')}
+                >
                   CHICSHELF
                 </h1>
                 <button 
@@ -537,7 +531,7 @@
 
             <footer className="mt-24">
               <div className={`border-t-2 ${theme.border} py-8 text-center`}>
-                <p className="text-[10px] tracking-[0.4em] font-bold uppercase mb-4 opacity-60">CHICSHELF © 2026</p>
+                <p className="text-[10px] tracking-[0.4em] font-bold uppercase mb-4 opacity-60">CECIBOOKS © 2026</p>
                 <ThemeSwitcher 
                   currentTheme={currentTheme} 
                   onThemeChange={setCurrentTheme} 
