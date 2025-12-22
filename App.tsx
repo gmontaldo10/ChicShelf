@@ -1,0 +1,389 @@
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Book, Theme, Section, ThemeColors } from './types';
+import { THEME_CONFIG, PLACEHOLDER_COVERS } from './constants';
+import { generateFashionSummary } from './services/geminiService';
+import BookCard from './components/BookCard';
+import ThemeSwitcher from './components/ThemeSwitcher';
+
+const App: React.FC = () => {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [currentTheme, setCurrentTheme] = useState<Theme>('editor');
+  const [currentSection, setCurrentSection] = useState<Section>('shelf');
+  const [isAddingOrEditing, setIsAddingOrEditing] = useState<boolean>(false);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterAuthor, setFilterAuthor] = useState('');
+
+  // Form state
+  const [formState, setFormState] = useState<Partial<Book>>({
+    title: '',
+    author: '',
+    year: new Date().getFullYear().toString(),
+    summary: '',
+    coverUrl: '',
+  });
+
+  // Load from localStorage
+  useEffect(() => {
+    const savedBooks = localStorage.getItem('chicShelf_books');
+    const savedTheme = localStorage.getItem('chicShelf_theme') as Theme;
+    if (savedBooks) setBooks(JSON.parse(savedBooks));
+    if (savedTheme) setCurrentTheme(savedTheme);
+  }, []);
+
+  // Save to localStorage
+  useEffect(() => {
+    localStorage.setItem('chicShelf_books', JSON.stringify(books));
+    localStorage.setItem('chicShelf_theme', currentTheme);
+  }, [books, currentTheme]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formState.title || !formState.author) return;
+
+    setIsGenerating(true);
+    
+    let finalSummary = formState.summary;
+    if (!finalSummary) {
+      finalSummary = await generateFashionSummary(formState.title, formState.author);
+    }
+
+    if (editingBookId) {
+      setBooks(prev => prev.map(b => b.id === editingBookId ? {
+        ...b,
+        title: formState.title!,
+        author: formState.author!,
+        year: formState.year!,
+        summary: finalSummary!,
+        coverUrl: formState.coverUrl || b.coverUrl
+      } : b));
+    } else {
+      const bookToAdd: Book = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: formState.title,
+        author: formState.author,
+        year: formState.year || '2024',
+        summary: finalSummary,
+        coverUrl: formState.coverUrl || PLACEHOLDER_COVERS[Math.floor(Math.random() * PLACEHOLDER_COVERS.length)],
+        createdAt: Date.now(),
+      };
+      setBooks([bookToAdd, ...books]);
+    }
+
+    resetForm();
+    setIsGenerating(false);
+    setIsAddingOrEditing(false);
+  };
+
+  const resetForm = () => {
+    setFormState({ title: '', author: '', year: '2024', summary: '', coverUrl: '' });
+    setEditingBookId(null);
+  };
+
+  const handleEdit = (book: Book) => {
+    setFormState(book);
+    setEditingBookId(book.id);
+    setIsAddingOrEditing(true);
+  };
+
+  const handleDelete = useCallback((id: string) => {
+    if (confirm("Remove this edition from your collection?")) {
+      setBooks(prev => prev.filter(b => b.id !== id));
+    }
+  }, []);
+
+  const filteredBooks = useMemo(() => {
+    return books.filter(b => {
+      const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            b.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            b.summary.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesYear = filterYear === '' || b.year === filterYear;
+      const matchesAuthor = filterAuthor === '' || b.author === filterAuthor;
+      return matchesSearch && matchesYear && matchesAuthor;
+    });
+  }, [books, searchQuery, filterYear, filterAuthor]);
+
+  const uniqueAuthors = useMemo(() => Array.from(new Set(books.map(b => b.author))), [books]);
+  const uniqueYears = useMemo(() => Array.from(new Set(books.map(b => b.year))).sort((a: string, b: string) => b.localeCompare(a)), [books]);
+
+  const theme = THEME_CONFIG[currentTheme];
+
+  // Component for Cluster View
+  const ClusterView = () => {
+    const authorGroups = useMemo(() => {
+      const groups: Record<string, Book[]> = {};
+      books.forEach(b => {
+        if (!groups[b.author]) groups[b.author] = [];
+        groups[b.author].push(b);
+      });
+      return groups;
+    }, [books]);
+
+    return (
+      <div className="flex flex-wrap gap-8 md:gap-16 justify-center py-12 items-end">
+        {Object.entries(authorGroups).map(([author, authorBooks]) => {
+          const booksForAuthor = authorBooks as Book[];
+          const count = booksForAuthor.length;
+          // Dynamic sizing: Base size 100px + 25px per additional book
+          const circleSize = Math.min(300, 100 + (count - 1) * 25);
+          
+          return (
+            <div key={author} className="flex flex-col items-center">
+               <div 
+                style={{ width: `${circleSize}px`, height: `${circleSize}px` }}
+                className={`mb-4 rounded-full border-2 ${theme.border} flex items-center justify-center p-6 text-center group hover:scale-105 transition-all duration-500 cursor-default shadow-lg overflow-hidden bg-opacity-10 bg-black`}
+               >
+                  <span className="font-high-fashion font-bold leading-none uppercase tracking-tighter" style={{ fontSize: `${Math.max(10, circleSize/8)}px` }}>
+                    {author}
+                    <br/>
+                    <span className="opacity-40 italic font-serif" style={{ fontSize: `${Math.max(8, circleSize/12)}px` }}>Vol. {count}</span>
+                  </span>
+               </div>
+               <div className="flex flex-col items-center gap-1">
+                  {booksForAuthor.slice(0, 5).map(b => (
+                    <span key={b.id} className="text-[7px] md:text-[8px] uppercase tracking-[0.2em] font-semibold opacity-60">
+                      {b.title}
+                    </span>
+                  ))}
+                  {count > 5 && <span className="text-[7px] opacity-30 italic">+{count-5} more</span>}
+               </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Component for Library View (Bookshelf Simulation)
+  const LibraryView = () => {
+    return (
+      <div className="max-w-6xl mx-auto py-12">
+        <div className="flex flex-wrap justify-center items-end gap-1 md:gap-2 px-4">
+          {books.map((book, index) => (
+            <div 
+              key={book.id}
+              onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(book.author + ' books')}`, '_blank')}
+              className="relative group cursor-pointer transition-all duration-300 hover:-translate-y-6 hover:z-10"
+            >
+              <div className={`shadow-xl border-r-2 border-black/10 overflow-hidden ${theme.border} border-t border-l`}>
+                <img 
+                  src={book.coverUrl} 
+                  alt={book.title}
+                  className="w-12 sm:w-16 md:w-28 h-32 sm:h-44 md:h-72 object-cover"
+                />
+              </div>
+              {/* Spine-like overlay or tooltip */}
+              <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 md:p-4 pointer-events-none">
+                <p className="text-[6px] md:text-[10px] text-white font-bold leading-none uppercase tracking-tight line-clamp-2">{book.title}</p>
+                <p className="text-[5px] md:text-[8px] text-white/70 italic font-serif mt-1 md:mt-2 line-clamp-1">{book.author}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Shelf Graphic */}
+        <div className={`w-full h-4 mt-[-4px] border-t-4 border-x-4 ${theme.border} opacity-20 bg-black/10`}></div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`min-h-screen transition-colors duration-500 ${theme.bg} ${theme.text} px-4 pb-12 pt-6 md:px-12 lg:px-24`}>
+      {/* Header & Main Navigation */}
+      <header className={`mb-8 sticky top-0 ${theme.bg} z-50 pt-2`}>
+        <div className="flex justify-between items-center mb-4 md:mb-6">
+          <h1 className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none hover:italic cursor-pointer transition-all duration-700" onClick={() => setCurrentSection('shelf')}>
+            CHICSHELF
+          </h1>
+          <button 
+            onClick={() => setIsAddingOrEditing(!isAddingOrEditing)}
+            className={`px-3 py-1.5 md:px-4 md:py-2 border-2 ${theme.border} text-[9px] md:text-[10px] font-bold tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all hover:invert shrink-0`}
+          >
+            {isAddingOrEditing ? 'CLOSE' : 'ADD EDITION'}
+          </button>
+        </div>
+
+        {/* Sections Nav */}
+        <nav className={`border-y-2 ${theme.border} py-3 flex justify-center gap-4 md:gap-16`}>
+          {['shelf', 'list', 'cluster', 'library'].map((s) => (
+            <button
+              key={s}
+              onClick={() => { setCurrentSection(s as Section); setIsAddingOrEditing(false); }}
+              className={`text-[10px] md:text-base font-high-fashion tracking-[0.2em] uppercase transition-all ${
+                currentSection === s && !isAddingOrEditing ? 'underline underline-offset-8 italic scale-110' : 'opacity-40 hover:opacity-100'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="min-h-[50vh]">
+        {isAddingOrEditing ? (
+          <div className="max-w-2xl mx-auto py-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <h2 className="text-2xl md:text-3xl font-high-fashion uppercase mb-8 md:mb-12 text-center underline decoration-1 underline-offset-8 italic">
+              {editingBookId ? 'Edit Publication' : 'New Publication'}
+            </h2>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-8 md:gap-10">
+              <div className="group">
+                <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Volume Title</label>
+                <input 
+                  type="text" required placeholder="Enter Title..."
+                  value={formState.title}
+                  onChange={e => setFormState({...formState, title: e.target.value})}
+                  className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                />
+              </div>
+
+              <div className="group">
+                <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Lead Author</label>
+                <input 
+                  type="text" required placeholder="Enter Author Name..."
+                  value={formState.author}
+                  onChange={e => setFormState({...formState, author: e.target.value})}
+                  className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Year</label>
+                  <input 
+                    type="text" placeholder="e.g. 2024"
+                    value={formState.year}
+                    onChange={e => setFormState({...formState, year: e.target.value})}
+                    className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Cover URL</label>
+                  <input 
+                    type="url" placeholder="https://..."
+                    value={formState.coverUrl}
+                    onChange={e => setFormState({...formState, coverUrl: e.target.value})}
+                    className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                  />
+                </div>
+              </div>
+
+              <div className="group">
+                <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Editorial Summary</label>
+                <textarea 
+                  rows={2} placeholder="Leave blank for AI Stylist..."
+                  value={formState.summary}
+                  onChange={e => setFormState({...formState, summary: e.target.value})}
+                  className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl resize-none`}
+                />
+              </div>
+
+              <button 
+                type="submit" disabled={isGenerating}
+                className={`w-full py-5 md:py-6 text-sm tracking-[0.5em] font-bold uppercase transition-all duration-500 flex items-center justify-center gap-4 ${theme.accent} hover:scale-[0.99] active:scale-95 disabled:opacity-50`}
+              >
+                {isGenerating ? <span className="animate-pulse">Curating...</span> : (editingBookId ? 'Update Entry' : 'Confirm Addition')}
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="animate-in fade-in duration-700">
+            {currentSection === 'shelf' && (
+              <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-12">
+                {books.length === 0 ? (
+                  <div className="col-span-full py-24 text-center border-2 border-dashed border-neutral-300">
+                    <p className="font-serif italic text-2xl opacity-50">Empty Shelves, Empty Soul.</p>
+                  </div>
+                ) : (
+                  books.map(book => (
+                    <div key={book.id} className="h-full">
+                      <BookCard book={book} theme={theme} onDelete={handleDelete} onEdit={handleEdit} />
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {currentSection === 'list' && (
+              <div className="max-w-5xl mx-auto">
+                <div className={`flex flex-wrap gap-4 mb-8 border-b-2 ${theme.border} pb-6`}>
+                  <div className="flex-grow min-w-[200px]">
+                    <input 
+                      type="text" placeholder="Search keyword..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className={`w-full bg-transparent border-b ${theme.border} py-2 focus:outline-none text-sm uppercase tracking-widest placeholder:opacity-40 ${theme.text}`}
+                    />
+                  </div>
+                  <select 
+                    value={filterAuthor}
+                    onChange={e => setFilterAuthor(e.target.value)}
+                    className={`bg-transparent border-b ${theme.border} py-2 focus:outline-none text-xs uppercase tracking-widest font-bold min-w-[150px] ${theme.text}`}
+                  >
+                    <option value="" className="bg-neutral-100 text-black">All Authors</option>
+                    {uniqueAuthors.map(a => <option key={a} value={a} className="bg-neutral-100 text-black">{a}</option>)}
+                  </select>
+                  <select 
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                    className={`bg-transparent border-b ${theme.border} py-2 focus:outline-none text-xs uppercase tracking-widest font-bold min-w-[100px] ${theme.text}`}
+                  >
+                    <option value="" className="bg-neutral-100 text-black">All Years</option>
+                    {uniqueYears.map(y => <option key={y} value={y} className="bg-neutral-100 text-black">{y}</option>)}
+                  </select>
+                </div>
+
+                <div className="overflow-x-auto no-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className={`text-[10px] uppercase tracking-[0.3em] font-bold border-b-2 ${theme.border}`}>
+                        <th className="pb-4">Edition Title</th>
+                        <th className="pb-4">Contributor</th>
+                        <th className="pb-4">Release</th>
+                        <th className="pb-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`font-serif text-sm ${theme.text}`}>
+                      {filteredBooks.map(book => (
+                        <tr key={book.id} className={`group border-b ${theme.border} hover:bg-black/5 transition-colors`}>
+                          <td className="py-4 md:py-6 font-bold uppercase tracking-tight text-base md:text-lg">{book.title}</td>
+                          <td className="py-4 md:py-6 italic opacity-80">{book.author}</td>
+                          <td className="py-4 md:py-6">{book.year}</td>
+                          <td className="py-4 md:py-6 text-right">
+                            <button onClick={() => handleEdit(book)} className="text-[10px] uppercase font-bold tracking-widest hover:underline">Edit</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {currentSection === 'cluster' && <ClusterView />}
+            
+            {currentSection === 'library' && <LibraryView />}
+          </div>
+        )}
+      </main>
+
+      {/* Persistent Fashion Footer */}
+      <footer className="mt-24">
+        <div className={`border-t-2 ${theme.border} py-8 text-center`}>
+          <p className="text-[10px] tracking-[0.4em] font-bold uppercase mb-4 opacity-60">CHICSHELF QUARTERLY © 2025</p>
+          <ThemeSwitcher 
+            currentTheme={currentTheme} 
+            onThemeChange={setCurrentTheme} 
+            borderClass={theme.border}
+          />
+          <p className="text-[8px] font-serif italic opacity-30 mt-8">“Reading is the ultimate luxury.”</p>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
