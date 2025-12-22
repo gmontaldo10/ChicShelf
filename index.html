@@ -1,14 +1,25 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ChicShelf | The Editorial Book Tracker</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@300;400;600&family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
       body {
         font-family: 'Montserrat', sans-serif;
@@ -28,18 +39,519 @@
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
       }
+      
+      /* Animation Utilities */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-in {
+        animation: fadeIn 0.7s ease-out forwards;
+      }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useCallback, useMemo } = React;
+
+      // --- CONSTANTS & CONFIG ---
+      const THEME_CONFIG = {
+        editor: {
+          bg: 'bg-[#ffffff]',
+          text: 'text-[#000000]',
+          accent: 'bg-[#ff3e00] text-white',
+          border: 'border-[#000000]',
+          cardBg: 'bg-[#ffffff]',
+        },
+        runway: {
+          bg: 'bg-[#1a1a1a]',
+          text: 'text-[#f1f1f1]',
+          accent: 'bg-[#95a5a6] text-black',
+          border: 'border-[#f1f1f1]',
+          cardBg: 'bg-[#262626]',
+        },
+        studio: {
+          bg: 'bg-[#fff0f5]',
+          text: 'text-[#4a0404]',
+          accent: 'bg-[#800020] text-white',
+          border: 'border-[#800020]',
+          cardBg: 'bg-[#fffcfd]',
+        },
+        dryFlower: {
+          bg: 'bg-[#f4e1d2]',
+          text: 'text-[#7d4f50]',
+          accent: 'bg-[#ac8e82] text-white',
+          border: 'border-[#7d4f50]',
+          cardBg: 'bg-[#faf3ed]',
+        },
+      };
+
+      const PLACEHOLDER_COVERS = [
+        'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800',
+        'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=800',
+        'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=800',
+      ];
+
+      // --- COMPONENTS ---
+
+      // Updated ThemeSwitcher from uploaded file
+      const ThemeSwitcher = ({ currentTheme, onThemeChange, borderClass }) => {
+        const themes = [
+          { id: 'editor', label: 'EDITOR' },
+          { id: 'runway', label: 'RUNWAY' },
+          { id: 'studio', label: 'STUDIO' },
+          { id: 'dryFlower', label: 'DRY FLOWER' },
+        ];
+
+        return (
+          <div className={`flex flex-wrap items-center justify-center gap-4 md:gap-6 pt-4 opacity-40 hover:opacity-100 transition-opacity duration-500`}>
+            {themes.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onThemeChange(t.id)}
+                className={`text-[8px] tracking-[0.3em] font-bold transition-all duration-300 ${
+                  currentTheme === t.id 
+                    ? 'underline underline-offset-4' 
+                    : 'hover:opacity-80'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        );
+      };
+
+      // Updated BookCard from uploaded file
+      const BookCard = ({ book, theme, onDelete, onEdit }) => {
+        const handleGoodreads = () => {
+          window.open(`https://www.goodreads.com/search?q=${encodeURIComponent(book.title + ' ' + book.author)}`, '_blank');
+        };
+
+        return (
+          <div className={`group relative border-2 ${theme.border} ${theme.cardBg} transition-all duration-500 hover:shadow-2xl flex flex-col h-full`}>
+            <div className="relative aspect-[4/5] overflow-hidden border-b-2 bg-neutral-200">
+              <img 
+                src={book.coverUrl} 
+                alt={book.title}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+              <div className={`absolute top-0 right-0 p-1.5 ${theme.text} bg-white/40 backdrop-blur-md text-[8px] font-bold tracking-tighter`}>
+                {book.year}
+              </div>
+            </div>
+            
+            <div className="p-3 flex-grow flex flex-col justify-between">
+              <div>
+                <h3 className="font-high-fashion text-lg uppercase tracking-tight leading-none mb-1 group-hover:italic transition-all duration-300">
+                  {book.title}
+                </h3>
+                <p className="font-serif text-xs italic mb-2 opacity-70">by {book.author}</p>
+                <p className="text-[10px] uppercase tracking-widest font-semibold leading-tight mb-4 line-clamp-2">
+                  "{book.summary}"
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5 relative">
+                <button 
+                  onClick={handleGoodreads}
+                  className={`w-full py-1.5 border ${theme.border} text-[9px] tracking-[0.15em] font-bold uppercase transition-all hover:invert`}
+                >
+                  Goodreads
+                </button>
+                
+                <div className="flex justify-between items-center mt-1 h-3">
+                  <button 
+                    onClick={() => onDelete(book.id)}
+                    className="text-[8px] uppercase tracking-widest text-red-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Remove
+                  </button>
+                  <button 
+                    onClick={() => onEdit(book)}
+                    className="text-[8px] uppercase tracking-widest opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity font-bold italic"
+                  >
+                    edit
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // --- MAIN APPLICATION LOGIC ---
+
+      const App = () => {
+        const [books, setBooks] = useState([]);
+        const [currentTheme, setCurrentTheme] = useState('editor');
+        const [currentSection, setCurrentSection] = useState('shelf');
+        const [isAddingOrEditing, setIsAddingOrEditing] = useState(false);
+        const [editingBookId, setEditingBookId] = useState(null);
+
+        // Filter states
+        const [searchQuery, setSearchQuery] = useState('');
+        const [filterYear, setFilterYear] = useState('');
+        const [filterAuthor, setFilterAuthor] = useState('');
+
+        // Form state
+        const [formState, setFormState] = useState({
+          title: '',
+          author: '',
+          year: new Date().getFullYear().toString(),
+          summary: '',
+          coverUrl: '',
+        });
+
+        // Load from localStorage
+        useEffect(() => {
+          const savedBooks = localStorage.getItem('chicShelf_books');
+          const savedTheme = localStorage.getItem('chicShelf_theme');
+          if (savedBooks) setBooks(JSON.parse(savedBooks));
+          if (savedTheme) setCurrentTheme(savedTheme);
+        }, []);
+
+        // Save to localStorage
+        useEffect(() => {
+          localStorage.setItem('chicShelf_books', JSON.stringify(books));
+          localStorage.setItem('chicShelf_theme', currentTheme);
+        }, [books, currentTheme]);
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (!formState.title || !formState.author) return;
+
+          const finalSummary = formState.summary || "A curated edition for the sophisticated reader.";
+
+          if (editingBookId) {
+            setBooks(prev => prev.map(b => b.id === editingBookId ? {
+              ...b,
+              title: formState.title,
+              author: formState.author,
+              year: formState.year,
+              summary: finalSummary,
+              coverUrl: formState.coverUrl || b.coverUrl
+            } : b));
+          } else {
+            const bookToAdd = {
+              id: Math.random().toString(36).substr(2, 9),
+              title: formState.title,
+              author: formState.author,
+              year: formState.year || '2024',
+              summary: finalSummary,
+              coverUrl: formState.coverUrl || PLACEHOLDER_COVERS[Math.floor(Math.random() * PLACEHOLDER_COVERS.length)],
+              createdAt: Date.now(),
+            };
+            setBooks([bookToAdd, ...books]);
+          }
+
+          resetForm();
+          setIsAddingOrEditing(false);
+        };
+
+        const resetForm = () => {
+          setFormState({ title: '', author: '', year: '2024', summary: '', coverUrl: '' });
+          setEditingBookId(null);
+        };
+
+        const handleEdit = (book) => {
+          setFormState(book);
+          setEditingBookId(book.id);
+          setIsAddingOrEditing(true);
+        };
+
+        const handleDelete = useCallback((id) => {
+          if (confirm("Remove this edition from your collection?")) {
+            setBooks(prev => prev.filter(b => b.id !== id));
+          }
+        }, []);
+
+        const filteredBooks = useMemo(() => {
+          return books.filter(b => {
+            const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                  b.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  b.summary.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesYear = filterYear === '' || b.year === filterYear;
+            const matchesAuthor = filterAuthor === '' || b.author === filterAuthor;
+            return matchesSearch && matchesYear && matchesAuthor;
+          });
+        }, [books, searchQuery, filterYear, filterAuthor]);
+
+        const uniqueAuthors = useMemo(() => Array.from(new Set(books.map(b => b.author))), [books]);
+        const uniqueYears = useMemo(() => Array.from(new Set(books.map(b => b.year))).sort((a, b) => b.localeCompare(a)), [books]);
+
+        const theme = THEME_CONFIG[currentTheme];
+
+        // Component for Cluster View
+        const ClusterView = () => {
+          const authorGroups = useMemo(() => {
+            const groups = {};
+            books.forEach(b => {
+              if (!groups[b.author]) groups[b.author] = [];
+              groups[b.author].push(b);
+            });
+            return groups;
+          }, [books]);
+
+          return (
+            <div className="flex flex-wrap gap-8 md:gap-16 justify-center py-12 items-end">
+              {Object.entries(authorGroups).map(([author, authorBooks]) => {
+                const count = authorBooks.length;
+                const circleSize = Math.min(300, 100 + (count - 1) * 25);
+                
+                return (
+                  <div key={author} className="flex flex-col items-center">
+                     <div 
+                      style={{ width: `${circleSize}px`, height: `${circleSize}px` }}
+                      className={`mb-4 rounded-full border-2 ${theme.border} flex items-center justify-center p-6 text-center group hover:scale-105 transition-all duration-500 cursor-default shadow-lg overflow-hidden bg-opacity-10 bg-black`}
+                     >
+                        <span className="font-high-fashion font-bold leading-none uppercase tracking-tighter" style={{ fontSize: `${Math.max(10, circleSize/8)}px` }}>
+                          {author}
+                          <br/>
+                          <span className="opacity-40 italic font-serif" style={{ fontSize: `${Math.max(8, circleSize/12)}px` }}>Vol. {count}</span>
+                        </span>
+                     </div>
+                     <div className="flex flex-col items-center gap-1">
+                        {authorBooks.slice(0, 5).map(b => (
+                          <span key={b.id} className="text-[7px] md:text-[8px] uppercase tracking-[0.2em] font-semibold opacity-60">
+                            {b.title}
+                          </span>
+                        ))}
+                        {count > 5 && <span className="text-[7px] opacity-30 italic">+{count-5} more</span>}
+                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        };
+
+        // Component for Library View (Bookshelf Simulation)
+        const LibraryView = () => {
+          return (
+            <div className="max-w-6xl mx-auto py-12">
+              <div className="flex flex-wrap justify-center items-end gap-1 md:gap-2 px-4">
+                {books.map((book) => (
+                  <div 
+                    key={book.id}
+                    onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(book.author + ' books')}`, '_blank')}
+                    className="relative group cursor-pointer transition-all duration-300 hover:-translate-y-6 hover:z-10"
+                  >
+                    <div className={`shadow-xl border-r-2 border-black/10 overflow-hidden ${theme.border} border-t border-l`}>
+                      <img 
+                        src={book.coverUrl} 
+                        alt={book.title}
+                        className="w-12 sm:w-16 md:w-28 h-32 sm:h-44 md:h-72 object-cover"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 md:p-4 pointer-events-none">
+                      <p className="text-[6px] md:text-[10px] text-white font-bold leading-none uppercase tracking-tight line-clamp-2">{book.title}</p>
+                      <p className="text-[5px] md:text-[8px] text-white/70 italic font-serif mt-1 md:mt-2 line-clamp-1">{book.author}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className={`w-full h-4 mt-[-4px] border-t-4 border-x-4 ${theme.border} opacity-20 bg-black/10`}></div>
+            </div>
+          );
+        };
+
+        return (
+          <div className={`min-h-screen transition-colors duration-500 ${theme.bg} ${theme.text} px-4 pb-12 pt-6 md:px-12 lg:px-24`}>
+            <header className={`mb-8 sticky top-0 ${theme.bg} z-50 pt-2`}>
+              <div className="flex justify-between items-center mb-4 md:mb-6">
+                <h1 className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none hover:italic cursor-pointer transition-all duration-700" onClick={() => setCurrentSection('shelf')}>
+                  CHICSHELF
+                </h1>
+                <button 
+                  onClick={() => setIsAddingOrEditing(!isAddingOrEditing)}
+                  className={`px-3 py-1.5 md:px-4 md:py-2 border-2 ${theme.border} text-[9px] md:text-[10px] font-bold tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all hover:invert shrink-0`}
+                >
+                  {isAddingOrEditing ? 'CLOSE' : 'ADD EDITION'}
+                </button>
+              </div>
+
+              <nav className={`border-y-2 ${theme.border} py-3 flex justify-center gap-4 md:gap-16`}>
+                {['shelf', 'list', 'cluster', 'library'].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setCurrentSection(s); setIsAddingOrEditing(false); }}
+                    className={`text-[10px] md:text-base font-high-fashion tracking-[0.2em] uppercase transition-all ${
+                      currentSection === s && !isAddingOrEditing ? 'underline underline-offset-8 italic scale-110' : 'opacity-40 hover:opacity-100'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </nav>
+            </header>
+
+            <main className="min-h-[50vh]">
+              {isAddingOrEditing ? (
+                <div className="max-w-2xl mx-auto py-8 animate-in">
+                  <h2 className="text-2xl md:text-3xl font-high-fashion uppercase mb-8 md:mb-12 text-center underline decoration-1 underline-offset-8 italic">
+                    {editingBookId ? 'Edit Publication' : 'New Publication'}
+                  </h2>
+                  <form onSubmit={handleSubmit} className="flex flex-col gap-8 md:gap-10">
+                    <div className="group">
+                      <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Volume Title</label>
+                      <input 
+                        type="text" required placeholder="Enter Title..."
+                        value={formState.title}
+                        onChange={e => setFormState({...formState, title: e.target.value})}
+                        className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                      />
+                    </div>
+
+                    <div className="group">
+                      <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Lead Author</label>
+                      <input 
+                        type="text" required placeholder="Enter Author Name..."
+                        value={formState.author}
+                        onChange={e => setFormState({...formState, author: e.target.value})}
+                        className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div>
+                        <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Year</label>
+                        <input 
+                          type="text" placeholder="e.g. 2024"
+                          value={formState.year}
+                          onChange={e => setFormState({...formState, year: e.target.value})}
+                          className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Cover URL</label>
+                        <input 
+                          type="url" placeholder="https://..."
+                          value={formState.coverUrl}
+                          onChange={e => setFormState({...formState, coverUrl: e.target.value})}
+                          className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="group">
+                      <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Editorial Summary</label>
+                      <textarea 
+                        rows={2} placeholder="Describe the essence of this edition..."
+                        value={formState.summary}
+                        onChange={e => setFormState({...formState, summary: e.target.value})}
+                        className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl resize-none`}
+                      />
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className={`w-full py-5 md:py-6 text-sm tracking-[0.5em] font-bold uppercase transition-all duration-500 flex items-center justify-center gap-4 ${theme.accent} hover:scale-[0.99] active:scale-95`}
+                    >
+                      {editingBookId ? 'Update Entry' : 'Confirm Addition'}
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div className="animate-in">
+                  {currentSection === 'shelf' && (
+                    <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-12">
+                      {books.length === 0 ? (
+                        <div className="col-span-full py-24 text-center border-2 border-dashed border-neutral-300">
+                          <p className="font-serif italic text-2xl opacity-50">Empty Shelves, Empty Soul.</p>
+                        </div>
+                      ) : (
+                        books.map(book => (
+                          <div key={book.id} className="h-full">
+                            <BookCard book={book} theme={theme} onDelete={handleDelete} onEdit={handleEdit} />
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {currentSection === 'list' && (
+                    <div className="max-w-5xl mx-auto">
+                      <div className={`flex flex-wrap gap-4 mb-8 border-b-2 ${theme.border} pb-6`}>
+                        <div className="flex-grow min-w-[200px]">
+                          <input 
+                            type="text" placeholder="Search keyword..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className={`w-full bg-transparent border-b ${theme.border} py-2 focus:outline-none text-sm uppercase tracking-widest placeholder:opacity-40 ${theme.text}`}
+                          />
+                        </div>
+                        <select 
+                          value={filterAuthor}
+                          onChange={e => setFilterAuthor(e.target.value)}
+                          className={`bg-transparent border-b ${theme.border} py-2 focus:outline-none text-xs uppercase tracking-widest font-bold min-w-[150px] ${theme.text}`}
+                        >
+                          <option value="" className="bg-neutral-100 text-black">All Authors</option>
+                          {uniqueAuthors.map(a => <option key={a} value={a} className="bg-neutral-100 text-black">{a}</option>)}
+                        </select>
+                        <select 
+                          value={filterYear}
+                          onChange={e => setFilterYear(e.target.value)}
+                          className={`bg-transparent border-b ${theme.border} py-2 focus:outline-none text-xs uppercase tracking-widest font-bold min-w-[100px] ${theme.text}`}
+                        >
+                          <option value="" className="bg-neutral-100 text-black">All Years</option>
+                          {uniqueYears.map(y => <option key={y} value={y} className="bg-neutral-100 text-black">{y}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="overflow-x-auto no-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className={`text-[10px] uppercase tracking-[0.3em] font-bold border-b-2 ${theme.border}`}>
+                              <th className="pb-4">Edition Title</th>
+                              <th className="pb-4">Contributor</th>
+                              <th className="pb-4">Release</th>
+                              <th className="pb-4 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className={`font-serif text-sm ${theme.text}`}>
+                            {filteredBooks.map(book => (
+                              <tr key={book.id} className={`group border-b ${theme.border} hover:bg-black/5 transition-colors`}>
+                                <td className="py-4 md:py-6 font-bold uppercase tracking-tight text-base md:text-lg">{book.title}</td>
+                                <td className="py-4 md:py-6 italic opacity-80">{book.author}</td>
+                                <td className="py-4 md:py-6">{book.year}</td>
+                                <td className="py-4 md:py-6 text-right">
+                                  <button onClick={() => handleEdit(book)} className="text-[10px] uppercase font-bold tracking-widest hover:underline">Edit</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentSection === 'cluster' && <ClusterView />}
+                  
+                  {currentSection === 'library' && <LibraryView />}
+                </div>
+              )}
+            </main>
+
+            <footer className="mt-24">
+              <div className={`border-t-2 ${theme.border} py-8 text-center`}>
+                <p className="text-[10px] tracking-[0.4em] font-bold uppercase mb-4 opacity-60">CHICSHELF © 2026</p>
+                <ThemeSwitcher 
+                  currentTheme={currentTheme} 
+                  onThemeChange={setCurrentTheme} 
+                  borderClass={theme.border}
+                />
+                <p className="text-[8px] font-serif italic opacity-30 mt-8">“Reading will take you everywhere.”</p>
+              </div>
+            </footer>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
   </body>
 </html>
