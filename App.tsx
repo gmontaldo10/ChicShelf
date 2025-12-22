@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Book, Theme, Section, ThemeColors } from './types';
 import { THEME_CONFIG, PLACEHOLDER_COVERS } from './constants';
-import { generateFashionSummary } from './services/geminiService';
 import BookCard from './components/BookCard';
 import ThemeSwitcher from './components/ThemeSwitcher';
 
@@ -12,7 +11,6 @@ const App: React.FC = () => {
   const [currentSection, setCurrentSection] = useState<Section>('shelf');
   const [isAddingOrEditing, setIsAddingOrEditing] = useState<boolean>(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,16 +40,11 @@ const App: React.FC = () => {
     localStorage.setItem('chicShelf_theme', currentTheme);
   }, [books, currentTheme]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formState.title || !formState.author) return;
 
-    setIsGenerating(true);
-    
-    let finalSummary = formState.summary;
-    if (!finalSummary) {
-      finalSummary = await generateFashionSummary(formState.title, formState.author);
-    }
+    const finalSummary = formState.summary || "A curated edition for the sophisticated reader.";
 
     if (editingBookId) {
       setBooks(prev => prev.map(b => b.id === editingBookId ? {
@@ -59,7 +52,7 @@ const App: React.FC = () => {
         title: formState.title!,
         author: formState.author!,
         year: formState.year!,
-        summary: finalSummary!,
+        summary: finalSummary,
         coverUrl: formState.coverUrl || b.coverUrl
       } : b));
     } else {
@@ -76,7 +69,6 @@ const App: React.FC = () => {
     }
 
     resetForm();
-    setIsGenerating(false);
     setIsAddingOrEditing(false);
   };
 
@@ -164,7 +156,7 @@ const App: React.FC = () => {
     return (
       <div className="max-w-6xl mx-auto py-12">
         <div className="flex flex-wrap justify-center items-end gap-1 md:gap-2 px-4">
-          {books.map((book, index) => (
+          {books.map((book) => (
             <div 
               key={book.id}
               onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(book.author + ' books')}`, '_blank')}
@@ -177,7 +169,6 @@ const App: React.FC = () => {
                   className="w-12 sm:w-16 md:w-28 h-32 sm:h-44 md:h-72 object-cover"
                 />
               </div>
-              {/* Spine-like overlay or tooltip */}
               <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 md:p-4 pointer-events-none">
                 <p className="text-[6px] md:text-[10px] text-white font-bold leading-none uppercase tracking-tight line-clamp-2">{book.title}</p>
                 <p className="text-[5px] md:text-[8px] text-white/70 italic font-serif mt-1 md:mt-2 line-clamp-1">{book.author}</p>
@@ -185,7 +176,6 @@ const App: React.FC = () => {
             </div>
           ))}
         </div>
-        {/* Shelf Graphic */}
         <div className={`w-full h-4 mt-[-4px] border-t-4 border-x-4 ${theme.border} opacity-20 bg-black/10`}></div>
       </div>
     );
@@ -193,7 +183,6 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${theme.bg} ${theme.text} px-4 pb-12 pt-6 md:px-12 lg:px-24`}>
-      {/* Header & Main Navigation */}
       <header className={`mb-8 sticky top-0 ${theme.bg} z-50 pt-2`}>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <h1 className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none hover:italic cursor-pointer transition-all duration-700" onClick={() => setCurrentSection('shelf')}>
@@ -207,7 +196,6 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Sections Nav */}
         <nav className={`border-y-2 ${theme.border} py-3 flex justify-center gap-4 md:gap-16`}>
           {['shelf', 'list', 'cluster', 'library'].map((s) => (
             <button
@@ -274,7 +262,7 @@ const App: React.FC = () => {
               <div className="group">
                 <label className="text-[10px] uppercase tracking-[0.2em] font-bold block mb-2 opacity-60">Editorial Summary</label>
                 <textarea 
-                  rows={2} placeholder="Leave blank for AI Stylist..."
+                  rows={2} placeholder="Describe the essence of this edition..."
                   value={formState.summary}
                   onChange={e => setFormState({...formState, summary: e.target.value})}
                   className={`w-full bg-transparent border-b-2 ${theme.border} pb-2 focus:outline-none placeholder:opacity-20 font-serif text-lg md:text-xl resize-none`}
@@ -282,10 +270,10 @@ const App: React.FC = () => {
               </div>
 
               <button 
-                type="submit" disabled={isGenerating}
-                className={`w-full py-5 md:py-6 text-sm tracking-[0.5em] font-bold uppercase transition-all duration-500 flex items-center justify-center gap-4 ${theme.accent} hover:scale-[0.99] active:scale-95 disabled:opacity-50`}
+                type="submit"
+                className={`w-full py-5 md:py-6 text-sm tracking-[0.5em] font-bold uppercase transition-all duration-500 flex items-center justify-center gap-4 ${theme.accent} hover:scale-[0.99] active:scale-95`}
               >
-                {isGenerating ? <span className="animate-pulse">Curating...</span> : (editingBookId ? 'Update Entry' : 'Confirm Addition')}
+                {editingBookId ? 'Update Entry' : 'Confirm Addition'}
               </button>
             </form>
           </div>
@@ -370,7 +358,6 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Persistent Fashion Footer */}
       <footer className="mt-24">
         <div className={`border-t-2 ${theme.border} py-8 text-center`}>
           <p className="text-[10px] tracking-[0.4em] font-bold uppercase mb-4 opacity-60">CHICSHELF QUARTERLY © 2025</p>
