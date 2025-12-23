@@ -69,11 +69,10 @@
       const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } = window.FirebaseSDK;
 
       const THEME_CONFIG = {
-        editor: { bg: 'bg-[#fdf6f0]', text: 'text-[#4a2c2a]', accent: 'bg-[#d35400] text-white', border: 'border-[#4a2c2a]', cardBg: 'bg-[#fffcf9]' },
         runway: { bg: 'bg-[#d9e2d5]', text: 'text-[#2f3e2d]', accent: 'bg-[#5d6d53] text-white', border: 'border-[#2f3e2d]', cardBg: 'bg-[#e7eee4]' },
         vogue: { bg: 'bg-[#ffffff]', text: 'text-[#000000]', accent: 'bg-[#ff0000] text-white', border: 'border-[#000000]', cardBg: 'bg-[#ffffff]' },
         studio: { bg: 'bg-[#fff0f5]', text: 'text-[#4a0404]', accent: 'bg-[#800020] text-white', border: 'border-[#800020]', cardBg: 'bg-[#fffcfd]' },
-        dryflower: { bg: 'bg-[#f4e1d2]', text: 'text-[#7d4f50]', accent: 'bg-[#ac8e82] text-white', border: 'border-[#7d4f50]', cardBg: 'bg-[#faf3ed]' },
+        dry: { bg: 'bg-[#f4e1d2]', text: 'text-[#7d4f50]', accent: 'bg-[#ac8e82] text-white', border: 'border-[#7d4f50]', cardBg: 'bg-[#faf3ed]' },
       };
 
       const PLACEHOLDER_COVERS = [
@@ -90,7 +89,8 @@
           chevronUp: <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>,
           chevronDown: <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
           edit: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-          bookOpen: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full opacity-10"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          bookOpen: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full opacity-10"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+          sortIcon: <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg>
         };
         return <span className={className}>{icons[name] || null}</span>;
       };
@@ -115,12 +115,13 @@
       const App = () => {
         const [user, setUser] = useState(null);
         const [books, setBooks] = useState([]);
-        const [currentTheme, setCurrentTheme] = useState('dryflower');
+        const [currentTheme, setCurrentTheme] = useState('dry');
         const [currentSection, setCurrentSection] = useState('library');
         const [isAddingOrEditing, setIsAddingOrEditing] = useState(false);
         const [editingBookId, setEditingBookId] = useState(null);
         const [clusterBy, setClusterBy] = useState('author');
         const [clusterFilterYear, setClusterFilterYear] = useState('');
+        const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
 
         const [formState, setFormState] = useState({
           title: '', author: '', month: '', year: new Date().getFullYear().toString(), genre: '', stars: 1, coverUrl: ''
@@ -170,7 +171,7 @@
           return () => unsubscribe();
         }, [user]);
 
-        const theme = THEME_CONFIG[currentTheme] || THEME_CONFIG.dryflower;
+        const theme = THEME_CONFIG[currentTheme] || THEME_CONFIG.dry;
 
         const handleSubmit = async (e) => {
           e.preventDefault();
@@ -241,16 +242,13 @@
             try {
               const imported = JSON.parse(event.target.result);
               if (Array.isArray(imported)) {
-                // Key to identify books: lowercase title + author
                 const existingKeys = new Set(books.map(b => `${b.title.toLowerCase().trim()}|${b.author.toLowerCase().trim()}`));
                 const newBooks = imported.filter(b => {
                   const key = `${b.title.toLowerCase().trim()}|${b.author.toLowerCase().trim()}`;
                   return !existingKeys.has(key);
                 });
 
-                if (newBooks.length === 0) {
-                  return; // Nothing new to add
-                }
+                if (newBooks.length === 0) return;
 
                 if (db) {
                     for (const b of newBooks) {
@@ -270,8 +268,38 @@
             } catch (err) { console.error("Import failed", err); }
           };
           reader.readAsText(file);
-          e.target.value = ''; // Reset input
+          e.target.value = '';
         };
+
+        const handleSort = (key) => {
+          let direction = 'asc';
+          if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+          }
+          setSortConfig({ key, direction });
+        };
+
+        const sortedBooks = useMemo(() => {
+          const sortable = [...books];
+          sortable.sort((a, b) => {
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
+
+            // Handle numeric strings like years
+            if (sortConfig.key === 'year' || sortConfig.key === 'stars') {
+              aVal = Number(aVal);
+              bVal = Number(bVal);
+            } else if (typeof aVal === 'string') {
+              aVal = aVal.toLowerCase();
+              bVal = bVal.toLowerCase();
+            }
+
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+          });
+          return sortable;
+        }, [books, sortConfig]);
 
         const moveRanking = async (book, direction, yearGroup) => {
           const group = books
@@ -305,14 +333,16 @@
           }
         };
 
-        const sortedBooksLIFO = useMemo(() => [...books].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [books]);
         const uniqueYears = useMemo(() => Array.from(new Set(books.map(b => b.year))).sort((a, b) => b - a), [books]);
 
         return (
           <div className={`min-h-screen transition-colors duration-500 ${theme.bg} ${theme.text} px-4 pb-12 pt-6 md:px-12 lg:px-24`}>
             <header className={`mb-8 sticky top-0 ${theme.bg} z-50 pt-2`}>
               <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none hover:italic cursor-pointer transition-all duration-700 mobile-header-text" onClick={() => { setCurrentSection('library'); setIsAddingOrEditing(false); }}>
+                <h1 
+                  className="text-3xl sm:text-4xl md:text-8xl font-high-fashion font-bold tracking-tighter leading-none cursor-pointer mobile-header-text" 
+                  onClick={() => { setCurrentSection('library'); setIsAddingOrEditing(false); }}
+                >
                   CHICSHELF
                 </h1>
                 <button onClick={() => { setIsAddingOrEditing(!isAddingOrEditing); if(!isAddingOrEditing) resetForm(); }} className={`px-4 py-2 border-2 ${theme.border} text-[9px] md:text-[10px] font-bold tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all hover:invert ml-4 whitespace-nowrap`}>
@@ -392,7 +422,7 @@
                       ) : (
                         <>
                           <div className="flex flex-wrap justify-center items-end gap-2 px-4">
-                            {sortedBooksLIFO.map((book) => (
+                            {[...books].sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).map((book) => (
                               <div key={book.id} onClick={() => handleEdit(book)} className="relative group cursor-pointer transition-all duration-300 hover:-translate-y-8 hover:z-10">
                                 <div className={`shadow-xl border-r-2 border-black/10 overflow-hidden ${theme.border} border-t border-l`}>
                                   <img src={book.coverUrl} className="w-14 sm:w-20 md:w-32 h-40 sm:h-56 md:h-80 object-cover" />
@@ -416,16 +446,25 @@
                         <table className="w-full text-left border-collapse min-w-[600px]">
                           <thead>
                             <tr className={`text-[9px] md:text-[10px] uppercase tracking-[0.3em] font-bold border-b-2 ${theme.border}`}>
-                              <th className="pb-4">Title</th>
-                              <th className="pb-4">Author</th>
-                              <th className="pb-4">Year</th>
-                              <th className="pb-4">Genre</th>
-                              <th className="pb-4">Rating</th>
+                              {[
+                                { key: 'title', label: 'Title' },
+                                { key: 'author', label: 'Author' },
+                                { key: 'year', label: 'Year' },
+                                { key: 'genre', label: 'Genre' },
+                                { key: 'stars', label: 'Rating' }
+                              ].map(col => (
+                                <th key={col.key} className="pb-4 cursor-pointer hover:opacity-60 transition-opacity" onClick={() => handleSort(col.key)}>
+                                  <div className="flex items-center gap-1">
+                                    {col.label}
+                                    <LucideIcon name="sortIcon" className={`opacity-40 ${sortConfig.key === col.key ? 'opacity-100' : ''}`} />
+                                  </div>
+                                </th>
+                              ))}
                               <th className="pb-4 text-center">Edit</th>
                             </tr>
                           </thead>
                           <tbody className="font-serif text-sm">
-                            {books.map(book => (
+                            {sortedBooks.map(book => (
                               <tr key={book.id} className={`group border-b ${theme.border} hover:bg-black/5 transition-colors`}>
                                 <td className="py-4 font-bold uppercase tracking-tight pr-4">{book.title}</td>
                                 <td className="py-4 italic opacity-70 pr-4">{book.author}</td>
@@ -465,21 +504,44 @@
                           {uniqueYears.map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
                       </div>
-                      <div className="flex flex-wrap gap-8 md:gap-16 justify-center py-8">
-                        {Object.entries(books.filter(b => !clusterFilterYear || b.year === clusterFilterYear).reduce((acc, b) => {
-                          const key = clusterBy === 'author' ? b.author : (b.genre || 'Uncategorized');
-                          if (!acc[key]) acc[key] = [];
-                          acc[key].push(b);
-                          return acc;
-                        }, {})).map(([group, groupBooks]) => (
-                          <div key={group} className="flex flex-col items-center">
-                            <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full border-2 ${theme.border} flex items-center justify-center p-4 text-center group hover:scale-105 transition-all shadow-lg bg-black/5`}>
-                              <span className="font-high-fashion font-bold leading-none uppercase tracking-tighter text-[10px] md:text-xs">
-                                {group}<br/><span className="opacity-40 italic font-serif text-[8px]">Vol. {groupBooks.length}</span>
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="flex flex-wrap gap-12 md:gap-24 justify-center py-8">
+                        {(() => {
+                          const grouped = books.filter(b => !clusterFilterYear || b.year === clusterFilterYear).reduce((acc, b) => {
+                            const key = clusterBy === 'author' ? b.author : (b.genre || 'Uncategorized');
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(b);
+                            return acc;
+                          }, {});
+                          
+                          const counts = Object.values(grouped).map(arr => arr.length);
+                          const maxCount = Math.max(...counts, 1);
+                          const minSize = 100;
+                          const maxSize = 250;
+
+                          return Object.entries(grouped).map(([group, groupBooks]) => {
+                            const relativeSize = minSize + ((groupBooks.length / maxCount) * (maxSize - minSize));
+                            
+                            return (
+                              <div key={group} className="flex flex-col items-center max-w-[200px]">
+                                <div 
+                                  style={{ width: `${relativeSize}px`, height: `${relativeSize}px` }}
+                                  className={`rounded-full border-2 ${theme.border} flex items-center justify-center p-4 text-center group hover:scale-105 transition-all shadow-lg bg-black/5 mb-4`}
+                                >
+                                  <span className="font-high-fashion font-bold leading-none uppercase tracking-tighter text-[10px] md:text-xs">
+                                    {group}<br/><span className="opacity-40 italic font-serif text-[8px]">Vol. {groupBooks.length}</span>
+                                  </span>
+                                </div>
+                                <div className="flex flex-col items-center gap-1 text-center">
+                                  {groupBooks.map(b => (
+                                    <span key={b.id} className="text-[7px] uppercase tracking-wider opacity-40 hover:opacity-100 transition-opacity">
+                                      {b.title}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   )}
@@ -531,13 +593,13 @@
 
             <footer className="mt-24 border-t-2 border-black/10 py-12 text-center opacity-40 hover:opacity-100 transition-opacity">
               <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 mb-8 px-4">
-                {['editor', 'runway', 'vogue', 'studio', 'dryflower'].map(id => (
+                {['runway', 'vogue', 'studio', 'dry'].map(id => (
                   <button key={id} onClick={() => setCurrentTheme(id)} className={`text-[8px] md:text-[10px] tracking-[0.3em] font-bold ${currentTheme === id ? 'underline underline-offset-4' : ''}`}>
                     {id.toUpperCase()}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] tracking-[0.4em] font-bold uppercase">CHICSHELF © 2026</p>
+              <p className="text-[10px] tracking-[0.4em] font-bold uppercase">GMD © 2026</p>
             </footer>
           </div>
         );
